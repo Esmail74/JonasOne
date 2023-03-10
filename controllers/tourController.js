@@ -4,18 +4,40 @@ const Tour = require('../models/tourModel');
 
 
 //#region Routes
-module.exports.getAllTours = (req, res) => {
-   res.status(200).json({
-      status: 'success',
-
-   });
+module.exports.getAllTours = async (req, res) => {
+   try {
+      const tours = await Tour.find();
+      res.status(200).json({
+         status: 'success',
+         data: {
+            tours
+         }
+      });
+   } catch (err) {
+      res.status(404).json({
+         status: 'fail',
+         message: err
+      });
+   }
 };
-
-module.exports.getTour = (req, res) => {
-   const id = req.params.id * 1; //Trick to convert it to number
-
+// todo it hahaha
+module.exports.getTour = async (req, res) => {
+   try {
+      const tour = await Tour.findById(req.params.id);
+      res.status(200).json({
+         status: 'success',
+         data: {
+            tour
+         }
+      }); Hello;
+   } catch (err) {
+      res.status(404).json({
+         status: 'fail',
+         message: err
+      });
+   };
 };
-
+// xx.yy
 module.exports.createTour = async (req, res) => {
    try {
       const newTour = await Tour.create(req.body);
@@ -35,20 +57,40 @@ module.exports.createTour = async (req, res) => {
 
 };
 
-module.exports.updateTour = (req, res) => {
-   res.status(200).json({
-      status: 'success',
-      data: {
-         tour: '<Updated tour here...>'
-      }
-   });
+module.exports.updateTour = async (req, res) => {
+   try {
+      const tour = await Tour.findByIdAndUpdate(req.params.id, req.body, {
+         new: true,
+         runValidators: true
+      });
+      res.status(200).json({
+         status: 'success',
+         data: {
+            tour
+         }
+      });
+   } catch (err) {
+      res.status(400).json({
+         status: 'fail',
+         message: err
+      });
+   }
 };
 
-module.exports.deleteTour = (req, res) => {
+module.exports.deleteTour = async (req, res) => {
+   try {
+      await Tour.findByIdAndDelete(req.params.id);
 
-   res.status(204).json({
-      status: 'success',
-      data: null
-   });
+      res.status(204).json({
+         status: 'success',
+         data: null
+      });
+   } catch (err) {
+      res.status(400).json({
+         status: 'fail',
+         message: err
+      });
+   }
+
 };
 //#endregion
