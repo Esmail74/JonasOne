@@ -1,59 +1,21 @@
 const Tour = require('../models/tourModel');
+const APIFeatures = require('../utils/apiFeatures');
 
+module.exports.aliasTopTours = (req, res, next) => {
+   req.query.limit = '5';
+   req.query.sort = '-ratingsAverage,price';
+   req.query.fields = 'name,price,ratingsAverage,summary,difficulty';
+   next();
+};
 
 
 
 //#region Routes
 module.exports.getAllTours = async (req, res) => {
    try {
-      //Build a query
-      // 1A) Filtering
-      const queryObj = { ...req.query }; //Three dot remove it from being reference type and turn it to value type
-      const excludedFields = ['page', 'sort', 'limit', 'fields'];
-      excludedFields.forEach(x => delete queryObj[x]);
-
-      // 1B) Advance Filtering
-      let queryStr = JSON.stringify(queryObj);
-      queryStr = queryStr.replace(/\b(gte|gt|lte|lt)\b/g, match => `$${match}`);
-
-      let query = Tour.find(JSON.parse(queryStr));
-
-      // 2) Sorting
-      if (req.query.sort) {
-         const sortBy = req.query.sort.split(',').join(' ');
-         // We use split and join because we cant use space in url bar.
-         // query.sort take argument like: 'price -ratingsAverage' first asc sorting on prise then desc sorting on ratingsAverage
-         query = query.sort(sortBy);
-      } else {
-         // Default sorting when user did not specify sorting
-         // query = query.sort('-createdAt');
-      }
-
-      // 3) Limiting
-      if (req.query.fields) {
-         const fields = req.query.fields.split(',').join(' ');
-         // select take a string like "name duration price ratingAverage"
-         query = query.select(fields);
-      } else {
-         // Remove __v that mongoose add to our table.
-         query = query.select('-__v');
-      }
-
-      // 4) Pagination
-      const page = req.query.page * 1 || 1; // Trick to convert string to number
-      const limit = req.query.limit * 1 || 100; // || Make 100 default if user did not specify it
-      const skip = (page - 1) * limit;
-
-      query = query.skip(skip).limit(limit);
-
-      if (req.query.page) {
-         const numTours = await Tour.countDocuments();
-         if (skip >= numTours) throw new Error('This page does not exists');
-      }
-
-      // 5) Execute query
-      const tours = await query;
-      // query.sort().select().skip().limit()
+      const features = new APIFeatures(Tour.find(), req.query)
+         .filter().sort().limitFields().paginate();
+      const tours = await features.query;
 
       res.status(200).json({
          status: 'success',
@@ -65,7 +27,7 @@ module.exports.getAllTours = async (req, res) => {
    } catch (err) {
       res.status(404).json({
          status: 'fail',
-         message: err
+         message: err.message
       });
    }
 };
@@ -143,3 +105,42 @@ module.exports.deleteTour = async (req, res) => {
 
 };
 //#endregion
+
+module.exports.getTourStats = async (req, res) => {
+   try {
+      const stats = await Tour.aggregate([
+         {
+            $match: { ratingsAverage: { $gte: 4.5 } }
+         },
+         {
+            $group: {
+               _id: { $toUpper: '$difficulty' },
+               num: { $sum: 1 },
+               numRatings: { $sum: '$ratingsQuantity' },
+               avgRating: { $avg: '$ratingsAverage' },
+               avgPrice: { $avg: '$price' },
+               minPrice: { $min: '$price' },
+               maxPrice: { $max: '$price' },
+            }
+         },
+         {
+            $sort: { avgPrice: 1 }
+         },
+         // {
+         //    $match: { _id: { $ne: 'EASY' } }
+         // }
+      ]);
+
+      res.status(200).json({
+         status: 'success',
+         data: {
+            stats
+         }
+      });
+   } catch (err) {
+      res.status(400).json({
+         status: 'fail',
+         message: err
+      });
+   }
+};
